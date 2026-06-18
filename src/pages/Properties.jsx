@@ -1,25 +1,73 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useProperties } from '../hooks/useProperties'
 import PropertyCard from '../components/PropertyCard'
-
-// ダミーの物件データ
-const dummyProperties = [
-  { id: 1, name: '渋谷マンション 101号室', rent: 150000, area: '東京都渋谷区' },
-  { id: 2, name: '新宿アパート 203号室', rent: 95000, area: '東京都新宿区' },
-  { id: 3, name: '品川レジデンス 305号室', rent: 180000, area: '東京都品川区' },
-  { id: 4, name: '横浜ハイツ 502号室', rent: 120000, area: '神奈川県横浜市西区' },
-  { id: 5, name: '大阪タワー 1001号室', rent: 200000, area: '大阪府大阪市北区' },
-  { id: 6, name: '京都テラス 201号室', rent: 85000, area: '京都府京都市中京区' },
-]
+import PropertyForm from '../components/PropertyForm'
 
 function Properties() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const { properties, loading, error, addProperty, updateProperty, deleteProperty } = useProperties()
+
+  // フォームの表示状態とフォームエラー
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingProperty, setEditingProperty] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formError, setFormError] = useState('')
 
   const handleSignOut = async () => {
     await signOut()
-    // ログアウト後はログイン画面へ遷移
     navigate('/login')
+  }
+
+  // 新規登録フォームを開く
+  const handleAddNew = () => {
+    setEditingProperty(null)
+    setFormError('')
+    setIsFormOpen(true)
+  }
+
+  // 編集フォームを開く（対象物件のデータをセット）
+  const handleEdit = (property) => {
+    setEditingProperty(property)
+    setFormError('')
+    setIsFormOpen(true)
+  }
+
+  // 削除ボタンの処理（確認ダイアログあり）
+  const handleDelete = async (id) => {
+    if (!window.confirm('この物件を削除してもよいですか？')) return
+    try {
+      await deleteProperty(id)
+    } catch (err) {
+      alert('削除に失敗しました: ' + err.message)
+    }
+  }
+
+  // フォームの送信処理（新規・更新を判定）
+  const handleFormSubmit = async (formData) => {
+    setIsSubmitting(true)
+    setFormError('')
+    try {
+      if (editingProperty) {
+        // 既存物件の更新
+        await updateProperty(editingProperty.id, formData)
+      } else {
+        // 新規物件の登録（RLSポリシー用にuser_idを付与）
+        await addProperty({ ...formData, user_id: user.id })
+      }
+      setIsFormOpen(false)
+    } catch (err) {
+      setFormError('保存に失敗しました: ' + err.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleFormCancel = () => {
+    setIsFormOpen(false)
+    setEditingProperty(null)
   }
 
   return (
@@ -35,17 +83,61 @@ function Properties() {
         </div>
       </header>
 
-      {/* 物件一覧 */}
+      {/* メインコンテンツ */}
       <main className="main-content">
-        <h2 className="page-title">物件一覧</h2>
-        <p className="property-count">{dummyProperties.length}件の物件</p>
-
-        <div className="property-grid">
-          {dummyProperties.map((property) => (
-            <PropertyCard key={property.id} property={property} />
-          ))}
+        <div className="page-header">
+          <div>
+            <h2 className="page-title">物件一覧</h2>
+            {!loading && (
+              <p className="property-count">{properties.length}件の物件</p>
+            )}
+          </div>
+          <button onClick={handleAddNew} className="btn-primary">
+            ＋ 物件を登録
+          </button>
         </div>
+
+        {/* データ取得エラー */}
+        {error && (
+          <p className="error-message">データの取得に失敗しました: {error}</p>
+        )}
+
+        {/* ローディング */}
+        {loading ? (
+          <div className="loading-inline">読み込み中...</div>
+        ) : properties.length === 0 ? (
+          // 物件が0件の場合
+          <div className="empty-state">
+            <p>登録された物件がありません</p>
+            <button onClick={handleAddNew} className="btn-primary">
+              最初の物件を登録する
+            </button>
+          </div>
+        ) : (
+          // 物件カードの一覧
+          <div className="property-grid">
+            {properties.map((property) => (
+              <PropertyCard
+                key={property.id}
+                property={property}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
       </main>
+
+      {/* 登録・編集モーダル */}
+      {isFormOpen && (
+        <PropertyForm
+          initialData={editingProperty}
+          onSubmit={handleFormSubmit}
+          onCancel={handleFormCancel}
+          isSubmitting={isSubmitting}
+          error={formError}
+        />
+      )}
     </div>
   )
 }
