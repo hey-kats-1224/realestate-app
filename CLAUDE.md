@@ -77,6 +77,11 @@ git commit -m "変更内容の説明"
 git push origin main
 ```
 
+## デプロイ情報
+
+- 本番URL：https://realestate-app-beta-plum.vercel.app/
+- Supabaseプロジェクト名：realestate-app
+
 ## コーディング規約
 
 - `let` / `const` を使用し `var` は使わない
